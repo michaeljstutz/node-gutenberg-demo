@@ -1,0 +1,31 @@
+version: '2'
+services:
+  mysql:
+    image: mysql:5.7
+    ports:
+    - "${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
+      MYSQL_DATABASE: "${DB_DATABASE}"
+      MYSQL_USER: "${DB_USERNAME}"
+      MYSQL_PASSWORD: "${DB_PASSWORD}"
+    volumes:
+    - gutenberg_demo_mysql:/var/lib/mysql
+    networks:
+    - gutenberg_demo
+  node:
+    build:
+      context: ./docker/node
+      dockerfile: Dockerfile
+    image: michaeljstutz/gutenberg_demo_node
+    user: node
+    volumes:
+    - .:/gutenberg-demo
+    networks:
+    - gutenberg_demo
+networks:
+  gutenberg_demo:
+    driver: "bridge"
+volumes:
+  gutenberg_demo_mysql:
+    driver: "local"

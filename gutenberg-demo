@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Most of this script was borrowed from https://github.com/shipping-docker/vessel/blob/master/docker-files/vessel
+
+
+UNAME_OUT="$(uname -s)"
+case "${UNAME_OUT}" in
+    Linux*)             MACHINE=linux;;
+    Darwin*)            MACHINE=mac;;
+    MINGW64_NT-10.0*)   MACHINE=mingw64;;
+    *)                  MACHINE="UNKNOWN"
+esac
+
+if [[ "$MACHINE" == "UNKNOWN" ]]; then
+    echo "Unsupported system type"
+    echo "System must be a Macintosh, Linux or Windows"
+    echo ""
+    echo "System detection determined via uname command"
+    echo "If the following is empty, could not find uname command: $(which uname)"
+    echo "Your reported uname is: $(uname -s)"
+fi
+
+# Create base docker-compose command to run
+if [[ "$MACHINE" == "mingw64" ]]; then
+    COMPOSE="winpty docker-compose"
+else
+    COMPOSE="docker-compose"
+fi
+
+if [[ -f .env ]]; then
+    source .env
+else
+    echo "No .env file found within current working directory $(pwd)"
+    echo "Create a .env file before running command"
+    exit 0
+fi
+
+# If "node" is used, run node
+# from our node container
+if [[ "$1" == "node" ]]; then
+    shift 1
+    ${COMPOSE} run --rm \
+        node \
+        node "$@"
+
+# If "npm" is used, run npm
+# from our node container
+elif [[ "$1" == "npm" ]]; then
+    shift 1
+    ${COMPOSE} run --rm \
+        node \
+        npm "$@"
+
+# If "yarn" is used, run yarn
+# from our node container
+elif [[ "$1" == "yarn" ]]; then
+    shift 1
+    ${COMPOSE} run --rm \
+        node \
+        yarn "$@"
+
+# If "gulp" is used, run gulp
+# from our node container
+elif [[ "$1" == "grunt" ]]; then
+    shift 1
+    ${COMPOSE} run --rm \
+        node \
+        ./node_modules/.bin/grunt "$@"
+
+# If "ssh" is used, pass-thru to "ssh"
+# inside our node container
+elif [[ "$1" == "ssh" ]]; then
+    ${COMPOSE} run --rm \
+        node \
+        bash
+
+elif [[ "$1" == "migrate" ]]; then
+    if [[ "$2" == "production" ]] || [[ "$2" == "prod" ]]; then
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=production \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+    elif [[ "$2" == "development" ]] || [[ "$2" == "dev" ]]; then
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=development \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+    elif [[ "$2" == "test" ]]; then
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=test \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+    elif [[ "$2" == "all" ]]; then
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=development \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=test \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+        ${COMPOSE} run --rm \
+            -e NODE_ENV=production \
+            node \
+            ./node_modules/.bin/sequelize db:migrate
+    else
+        echo "Need to specify production, development, or test"
+    fi
+
+# Start test
+elif [[ "$1" == "test" ]]; then
+    ${COMPOSE} run --rm \
+        -e NODE_ENV=test \
+        node \
+        yarn test
+
+# Clean some files
+elif [[ "$1" == "clear:cache" ]]; then
+    rm -rf ./data/gutenberg/cache
+
+# Start up containers
+elif [[ "$1" == "start" ]]; then
+    ${COMPOSE} up -d
+
+# Stop the containers
+elif [[ "$1" == "stop" ]]; then
+    ${COMPOSE} down
+
+# Run the app
+elif [[ "$1" == "run" ]]; then
+    ${COMPOSE} run --rm \
+        -e NODE_ENV=development \
+        node \
+        node app.js
+
+# Else, pass-thru args to docker-compose
+else
+    $COMPOSE "$@"
+fi
